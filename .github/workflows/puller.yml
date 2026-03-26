@@ -1,0 +1,67 @@
+on:
+  schedule:
+    - cron: "0 0,6,12,18 * * *"
+  workflow_dispatch:
+    inputs:
+      receipt_start:
+        description: "Override start receipt"
+        required: false
+      receipt_end:
+        description: "Override end receipt"
+        required: false
+      delay_ms:
+        description: "Delay between requests ms (default 1500)"
+        required: false
+        default: "1500"
+
+jobs:
+  pull-cases:
+    name: Pull USCIS Cases (IOE0934800001 → IOE0934809999)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run puller
+        env:
+          SUPABASE_URL:        ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:        ${{ secrets.SUPABASE_KEY }}
+          TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
+          SOURCE_REPO:         "repo-01"
+          RECEIPT_START: >-
+            ${{
+              github.event.inputs.receipt_start ||
+              'IOE0934800001'
+            }}
+          RECEIPT_END: >-
+            ${{
+              github.event.inputs.receipt_end ||
+              'IOE0934809999'
+            }}
+          REQUEST_DELAY_MS: >-
+            ${{
+              github.event.inputs.delay_ms || '1500'
+            }}
+
+        run: python puller.py
+
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ github.run_id }}
+          path: "*.log"
+          retention-days: 14
+          if-no-files-found: ignore
