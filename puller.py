@@ -90,8 +90,30 @@ def infer_form_type(desc: str) -> str:
 # ── USCIS API ────────────────────────────────────────────────────────────────
 
 def get_uscis_token(session: requests.Session) -> str:
-    """Fetch a short-lived JWT from the USCIS auth endpoint."""
-    resp = session.get(USCIS_AUTH_URL, timeout=15)
+    """Fetch a short-lived JWT from the USCIS auth endpoint."""
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Origin": "https://egov.uscis.gov",
+        "Referer": "https://egov.uscis.gov/casestatus/landing.do",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        "Connection": "keep-alive",
+    }
+    resp = session.get(USCIS_AUTH_URL, headers=headers, timeout=15)
+    resp.raise_for_status()
+    data = resp.json()
+    token = (
+        data.get("JwtResponse", {}).get("accessToken")
+        or data.get("accessToken")
+    )
+    if not token:
+        raise RuntimeError(f"Could not parse token from: {data}")
+    log.info("USCIS token acquired")
+    return token
     resp.raise_for_status()
     data = resp.json()
     token = (
@@ -199,7 +221,11 @@ def main():
     changes     = []
 
     session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0"})
+session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Origin": "https://egov.uscis.gov",
+    "Referer": "https://egov.uscis.gov/casestatus/landing.do",
+})
 
     token = get_uscis_token(session)
 
